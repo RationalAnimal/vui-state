@@ -1,18 +1,30 @@
 {
   "name": "vui-state",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "npm module that provides session state related functions for inclusion into other vui-xxx projects.",
   "main": "index.js",
+  "scripts": {
+    "test": "./node_modules/mocha/bin/mocha test"
+  },
   "author": "Ilya Shubentsov",
   "copyright": "Copyright 2017 Ilya Shubentsov",
   "license": "MIT",
   "repository": {
-    "type" : "git",
-    "url" : "https://github.com/RationalAnimal/vui-state"
+    "type": "git",
+    "url": "https://github.com/RationalAnimal/vui-state"
+  },
+  "devDependencies": {
+    "chai": "^3.5.0",
+    "express": "^4.14.0",
+    "istanbul": "^0.4.5",
+    "mocha": "^3.2.0"
   },
   "keywords": [
     "vui",
     "alexa",
     "state"
-  ]
+  ],
+  "dependencies": {
+    "vui-session": "0.0.2"
+  }
 }
