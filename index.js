@@ -25,7 +25,6 @@ SOFTWARE.
 */
 'use strict'
 var state = {};
-var session = require("vui-session");
 
 /**
  * Call this function to add vui-state functionality to
@@ -40,116 +39,300 @@ state.addStateToApp = function(app){
     return;
   }
   app.stateAlreadyAdded = true;
-  session.addSessionToApp(app);
+  app.State = state.State;
+
 };
 
 /**
 * Constructor for a State object.  Initializes everything to empty values.
-* flow - this is the current app flow.  It is a hierarchical js object that
-* includes an instance of a flow object as a subflow.
-* getheredAnswers - these are answers gathered from the user.  The answers are
-* stored by flow as well as "common" answers that apply to all flows.  Common
-* answers are stored under empty (i.e. "") flow name.
+* currentFlow - this is the current "flow" of the app. May or may not be the
+* same as the last prompt.  Which it is depends on the app and the type
+* of the flow.
+* lastPrompt - this will normally be the identifier of the last thing that was
+* asked.  This may be specific or general.  For example, if the app has multiple
+* places where it asks for the user's name, this value may store a "generic"
+* token for asking for the name, or a specific one for the place in the flow
+* where that question was asked.
+* gatheredAnswers - these are answers gathered from the user.  The answers are
+* typically stored using the token that asked for them.  But it doesn't have to
+* be so.  For example, if the app asks for the zip code, the zip code might be
+* stored under that token, but the app may also use a separate API to get the
+* city/state for the zip code and store those values under different tokens.
+* promptCounts - these are the counts of how many times a particular prompt has
+* been presented to the user.
 */
 state.State = function(){
-  this.clear();
+  this.currentFlow = undefined;
+  this.lastPrompt = undefined;
+  this.gatheredAnswers = {};
+  this.autoIncrementPrompts = false;
+  this.promptCounts = {};
 
   this.clear = function(){
-    this.flow = new Flow();
+    this.currentFlow = undefined;
+    this.lastPrompt = undefined;
     this.gatheredAnswers = {};
+    this.autoIncrementPrompts = false;
+    this.promptCounts = {};
   }
-}
 
-state.Flow = function(name){
-  if(typeof name != "string"){
-    this.name = "";
+  this.clear();
+
+  this.setCurrentFlow = function(anotherFlow){
+    this.currentFlow = _parseStateToken(anotherFlow);
   }
-  else {
-    this.name = name;
+
+  this.getCurrentFlow = function(){
+    return this.currentFlow;
   }
-  this.subFlows = [];
-  this.getName = function(){
-    return this.name;
+
+  this.setLastPrompt = function(prompt){
+    this.lastPrompt = _parseStateToken(prompt);
+    if(this.autoIncrementPrompts == true){
+      this.incrementPromptedCount(this.lastPrompt);
+    }
   }
-  this.setName = function(name){
-    if(typeof name != "string" || name.indexOf(".") >= 0 || name.trim() == ""){
+
+  this.enablePromptCountAutoIncrement = function(){
+    this.autoIncrementPrompts = true;
+  }
+
+  this.disablePromptCountAutoIncrement = function(){
+    this.autoIncrementPrompts = false;
+  }
+
+  this.getLastPrompt = function(){
+    return this.lastPrompt;
+  }
+
+  this.setAnswer = function(token, value){
+    var parsedToken = _parseStateToken(token);
+    var parts = parsedToken.split(".");
+    if(parts.length == 0 || (parts.length == 1 && parts[0] == "")){
       return;
     }
-    this.name = name;
-  }
-
-  this.getParentFlow = function(){
-    return this.parentFlow;
-  }
-  this.getFullUpstreamName = function(){
-    if(state.Flow.isFlow(this.getParentFlow())){
-      var parentsFullName = this.getParentFlow().getFullUpstreamName();
-      if(parentsFullName == ""){
-        return this.getName();
+    var nodeToUpdate = this.gatheredAnswers;
+    for(var i = 0; i < parts.length; i++){
+      if(typeof nodeToUpdate[parts[i]] == "undefined"){
+        if(typeof value == "undefined"){
+          // Don't bother continuing - we are deleting something that doesn't exist.
+          return;
+        }
+        if(i == parts.length - 1){
+          if(typeof value == "undefined"){
+            delete nodeToUpdate[parts[i]];
+          }
+          else {
+            nodeToUpdate[parts[i]] = value;
+          }
+        }
+        else {
+          nodeToUpdate[parts[i]] = {};
+          nodeToUpdate = nodeToUpdate[parts[i]];
+        }
       }
-      return  parentsFullName + "." + this.getName();
+      else {
+        if(i == parts.length - 1){
+          if(typeof value == "undefined"){
+            delete nodeToUpdate[parts[i]];
+          }
+          else {
+            nodeToUpdate[parts[i]] = value;
+          }
+        }
+        else {
+          nodeToUpdate = nodeToUpdate[parts[i]];
+        }
+      }
     }
-    return this.getName();
+  }
+  this.clearAnswer = function(token){
+    this.setAnswer(token, undefined);
+  }
+  this.getAnswer = function(token){
+    var parsedToken = _parseStateToken(token);
+    var parts = parsedToken.split(".");
+    if(parts.length == 0 || (parts.length == 1 && parts[0] == "")){
+      return undefined;
+    }
+    var nodeToFetch = this.gatheredAnswers;
+    for(var i = 0; i < parts.length; i++){
+      if(typeof nodeToFetch[parts[i]] != "undefined"){
+        if(i == parts.length - 1){
+          return nodeToFetch[parts[i]];
+        }
+        else {
+          nodeToFetch = nodeToFetch[parts[i]];
+        }
+      }
+      else {
+        return undefined;
+      }
+    }
   }
 
-  this.hasSubFlow = function(){
-    if(this.subFlows.length > 0){
-      return true;
+  this.incrementPromptedCount = function(token){
+    var parsedToken = _parseStateToken(token);
+    var parts = parsedToken.split(".");
+    if(parts.length == 0 || (parts.length == 1 && parts[0] == "")){
+      return;
     }
-    return false;
+    var nodeToUpdate = this.promptCounts;
+    for(var i = 0; i < parts.length; i++){
+      if(typeof nodeToUpdate[parts[i]] == "undefined"){
+        if(i == parts.length - 1){
+          nodeToUpdate[parts[i]] = 1;
+        }
+        else {
+          nodeToUpdate[parts[i]] = {};
+          nodeToUpdate = nodeToUpdate[parts[i]];
+        }
+      }
+      else {
+        if(i == parts.length - 1){
+          nodeToUpdate[parts[i]] = nodeToUpdate[parts[i]] + 1;
+        }
+        else {
+          nodeToUpdate = nodeToUpdate[parts[i]];
+        }
+      }
+    }
   }
 
-  /**
-  * Call to add the subFlow to be the list of subFlows.  Ignores subFlows that
-  * have name composed of whitespaces only.
-  */
-  this.addSubFlow = function(subFlow){
-    if(state.Flow.isFlow(subFlow)){
-      var subFlowName = subFlow.getName().trim();
-      if(subFlowName != ""){
-        this.subFlows.push(subFlow);
-        subFlow.parentFlow = this;
+  this.resetPromptedCount = function(token){
+    var parsedToken = _parseStateToken(token);
+    var parts = parsedToken.split(".");
+    if(parts.length == 0 || (parts.length == 1 && parts[0] == "")){
+      return;
+    }
+    var nodeToUpdate = this.promptCounts;
+    for(var i = 0; i < parts.length; i++){
+      if(typeof nodeToUpdate[parts[i]] == "undefined"){
+        // Nothing to do - clearing a non-existant count
+        return;
+      }
+      else {
+        if(i == parts.length - 1){
+          nodeToUpdate[parts[i]] = 0;
+        }
+        else {
+          nodeToUpdate = nodeToUpdate[parts[i]];
+        }
+      }
+    }
+  }
+
+  this.getPromptedCount = function(token){
+    var parsedToken = _parseStateToken(token);
+    var parts = parsedToken.split(".");
+    if(parts.length == 0 || (parts.length == 1 && parts[0] == "")){
+      return undefined;
+    }
+    var nodeToFetch = this.promptCounts;
+    for(var i = 0; i < parts.length; i++){
+      if(typeof nodeToFetch[parts[i]] != "undefined"){
+        if(i == parts.length - 1){
+          return nodeToFetch[parts[i]];
+        }
+        else {
+          nodeToFetch = nodeToFetch[parts[i]];
+        }
+      }
+      else {
+        return 0;
       }
     }
   }
 }
 
-/**
-* Call this function to convert a string into Flow object. Ignores sub flows
-* whose names are white spaces.
-*/
-state.Flow.parseFlow = function(stringToParse){
-  var returnValue = new state.Flow();
-  if(typeof stringToParse == "string"){
-    var scratch = returnValue;
-    var parts = stringToParse.split(".");
-    for(var i = 0; i < parts.length; i ++){
-      var trimmedName = parts[i].trim();
-      if(trimmedName.length != ""){
-        var newSubFlow = new state.Flow(parts[i]);
-        scratch.addSubFlow(newSubFlow);
-        scratch = newSubFlow;
-      }
-    }
-  }
+var _parseState = function(toParse){
+  var jsonObject = JSON.parse(toParse);
+  var returnValue = new state.State();
+  returnValue.currentFlow = jsonObject.currentFlow;
+  returnValue.lastPrompt = jsonObject.lastPrompt;
+  returnValue.gatheredAnswers = jsonObject.gatheredAnswers;
+  returnValue.autoIncrementPrompts = jsonObject.autoIncrementPrompts;
+  returnValue.promptCounts = jsonObject.promptCounts;
+
   return returnValue;
-}
+};
 
-/**
-* Call to check if the argument is a valid Flow object.
-*/
-state.Flow.isFlow = function(objectToTest){
-  if(typeof objectToTest                     == "undefined" ||
-     typeof objectToTest.name                != "string" ||
-     typeof objectToTest.subFlows            == "undefined" ||
-     typeof objectToTest.getName             != "function" ||
-     typeof objectToTest.setName             != "function" ||
-     typeof objectToTest.getFullUpstreamName != "function" ||
-     typeof objectToTest.hasSubFlow          != "function" ||
-     typeof objectToTest.addSubFlow          != "function"){
+var _stateToString = function(){
+  var returnValue = "{";
+  returnValue += "\"currentFlow\":" + (typeof this == "undefined" || typeof this.currentFlow != "string"            ? "\"\"," : "\"" + this.currentFlow + "\",");
+  returnValue += "\"lastPrompt\":" + (typeof this == "undefined" || typeof this.lastPrompt != "string"              ? "\"\"," : "\"" + this.lastPrompt + "\",");
+  returnValue += "\"gatheredAnswers\":" + (typeof this == "undefined" || typeof this.gatheredAnswers == "undefined" ? "{}"    : JSON.stringify(this.gatheredAnswers)) + ",";
+  returnValue += "\"autoIncrementPrompts\":" + (typeof this == "undefined" || typeof this.autoIncrementPrompts == "undefined" ? "false" : this.autoIncrementPrompts) + ",";
+  returnValue += "\"promptCounts\":" + (typeof this == "undefined" || typeof this.promptCounts == "undefined"       ? "{}"    : JSON.stringify(this.promptCounts));
+  returnValue += "}";
+  return returnValue;
+};
+
+state.State.parseState = _parseState;
+
+state.State.toString = _stateToString.bind(state.State);
+
+
+state.State.prototype.parseState = _parseState;
+
+state.State.prototype.toString = _stateToString;
+
+var _isChildToken = function(parent, child, parseParent, parseChild){
+  if(typeof parseParent == "undefined"){
+    parseParent = true;
+  }
+  if(typeof parseChild == "undefined"){
+    parseChild = true;
+  }
+  if(parseParent){
+    var parsedParent = _parseStateToken(parent);
+  }
+  else {
+    var parsedParent = parent;
+  }
+  if(parseChild){
+    var parsedChild = _parseStateToken(child);
+  }
+  else {
+    var parsedChild = child;
+  }
+  if(parsedParent == parsedChild){
+    return true;
+  }
+  if(parsedChild.startsWith(parsedParent) == false){
     return false;
   }
-  return true;
+  var parentLength = parsedParent.length;
+  if(parsedChild.substring(parentLength, parentLength + 1) == "."){
+    return true;
+  }
+  return false;
+}
+
+state.State.isChildToken = _isChildToken;
+
+state.State.prototype.isChildToken =  _isChildToken;
+
+var _parseStateToken = function(stateToken){
+  if(typeof stateToken != "string"){
+    return "";
+  }
+  var parts = stateToken.split(".");
+  for(var i = 0; i < parts.length; i++){
+    parts[i] = parts[i].trim().toUpperCase().replace(/\s+/g, '_');
+  }
+  if(parts.length == 0){
+    return "";
+  }
+  if(parts.length == 1){
+    return parts[0];
+  }
+  var parsedToken = parts[0];
+  for(var i = 1; i < parts.length; i++){
+    parsedToken = parsedToken + '.' + parts[i];
+  }
+
+  return parsedToken;
 }
 
 module.exports = state;
