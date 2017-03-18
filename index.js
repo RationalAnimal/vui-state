@@ -93,6 +93,9 @@ state.State = function(){
     }
   }
 
+  this.getPromptCountAutoIncrement =  function() {
+    return this.autoIncrementPrompts;
+  }
   this.enablePromptCountAutoIncrement = function(){
     this.autoIncrementPrompts = true;
   }
