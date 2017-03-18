@@ -248,14 +248,19 @@ state.State = function(){
   }
 }
 
-var _parseState = function(toParse){
+var _parseState = function(toParse, stateToPopulate){
   if(typeof toParse == "string"){
     var jsonObject = JSON.parse(toParse);
   }
   else {
     var jsonObject = toParse;
   }
-  var returnValue = new state.State();
+  if(typeof stateToPopulate != "undefined"){
+    var returnValue = stateToPopulate;
+  }
+  else {
+    var returnValue = new state.State();
+  }
   // If the session is new then there will not be any values.  If that's the
   // case, then don't update them with "undefines"
   if(typeof jsonObject == "undefined" ||

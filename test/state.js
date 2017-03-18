@@ -42,6 +42,7 @@ describe("vui-state", function() {
       expect(app.State.parseState(toParse3).toString()).to.equal(toParse3);
       expect(app.State.parseState(toParse4).toString()).to.equal(toParse4);
       expect(app.State.parseState(toParse5).toString()).to.equal(toParse5);
+      var blah = app.State.parseState(toParse5);
     });
 
     it("verify State get/set current flow functions", function() {
@@ -66,7 +67,7 @@ describe("vui-state", function() {
       stateWithValues.resetPromptedCount("TEST.Flow.prompt2");
 //      console.log(stateWithValues.getPromptedCount("TEST.Flow.prompt1"));
 //      console.log(stateWithValues.getPromptedCount("TEST.Flow.prompt2"));
-      console.log(stateWithValues.promptCounts.TEST.FLOW.PROMPT2);
+//      console.log(stateWithValues.promptCounts.TEST.FLOW.PROMPT2);
 
 //      console.log("stateWithValues:", JSON.stringify(stateWithValues, null, 2));
       stateWithValues.enablePromptCountAutoIncrement();
