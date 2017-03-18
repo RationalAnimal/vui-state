@@ -255,11 +255,12 @@ var _parseState = function(toParse){
   var returnValue = new state.State();
   // If the session is new then there will not be any values.  If that's the
   // case, then don't update them with "undefines"
-  if(typeof jsonObject.currentFlow == "undefined" &&
-     typeof jsonObject.lastPrompt == "undefined" &&
-     typeof jsonObject.gatheredAnswers == "undefined" &&
-     typeof jsonObject.autoIncrementPrompts == "undefined" &&
-     typeof jsonObject.promptCounts == "undefined"){
+  if(typeof jsonObject == "undefined" ||
+     (typeof jsonObject.currentFlow == "undefined" &&
+      typeof jsonObject.lastPrompt == "undefined" &&
+      typeof jsonObject.gatheredAnswers == "undefined" &&
+      typeof jsonObject.autoIncrementPrompts == "undefined" &&
+      typeof jsonObject.promptCounts == "undefined")){
     return returnValue;
   }
   returnValue.currentFlow = jsonObject.currentFlow;
